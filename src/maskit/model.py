@@ -5,7 +5,7 @@ from transformers import AutoModelForMaskedLM, AutoTokenizer
 
 
 class maskitModel(nn.Module):
-    def __init__(self, model_name, varbalizer_map):
+    def __init__(self, model_name, verbalizer_map):
         super().__init__()
         self.backbone = AutoModelForMaskedLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)

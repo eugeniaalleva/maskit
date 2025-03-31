@@ -12,7 +12,7 @@ pip install maskit-learn
 # task and model
 classes = ['happy', 'sad']
 verbalizer_map = {'happy':['happy', 'fun'],
-                  'sad':['sad', 'cry']
+                  'sad':['sad', 'cry']}
 model_name = 'google-bert/bert-base-uncased'
 ```
 ### Select pre-trained model
@@ -23,6 +23,7 @@ model = maskitModel(model_name=model_name,
 ```
 ### Load dataset
 ```aiignore
+from torch.utils.data import DataLoader
 text = ['I am so happy today that I cannot stay still',
         'I am very very sad unfortunately']
 
