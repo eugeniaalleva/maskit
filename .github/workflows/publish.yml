@@ -3,7 +3,7 @@ name: Publish to PyPI
 on:
   push:
     tags:
-      - 'v*'  # Triggers on any tag starting with "v"
+      - 'v*'
 
 permissions:
   id-token: write  # Required for OIDC auth
