@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "maskit-learn"
-version = "0.0.2"
+version = "0.0.3"
 description = "[MASK]it -Efficient pre-trained encoder adaption leveraging the [MASK]"
 authors = [
     { name = "Eugenia Alleva", email = "eugenia.alleva@gmail.com" }

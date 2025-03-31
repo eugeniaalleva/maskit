@@ -9,10 +9,10 @@ class maskitModel(nn.Module):
         super().__init__()
         self.backbone = AutoModelForMaskedLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.verbalizer_map = varbalizer_map
+        self.verbalizer_map = verbalizer_map
         self.verbalizer_id_dict = self.convert_map_to_id()
         self.label_word_ids = list(self.verbalizer_id_dict.values())
-        self.n_classes = len(varbalizer_map)
+        self.n_classes = len(verbalizer_map)
 
     def forward(self, **kwargs):
         inputs = {
