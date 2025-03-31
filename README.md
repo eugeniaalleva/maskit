@@ -2,7 +2,7 @@
 
 ## Install
 requires python 3.10 or above
-`pip install maskit`
+```pip install maskit```
 
 ## Usage
 ### Define task
