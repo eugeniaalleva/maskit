@@ -24,9 +24,8 @@ model = maskitModel(model_name=model_name,
 ### Load dataset
 ```aiignore
 from torch.utils.data import DataLoader
-text = ['I am so happy today that I cannot stay still',
-        'I am very very sad unfortunately']
-
+from maskit.dataset import maskitDataset
+text = ['I am so happy today that I cannot stay still','I am very very sad unfortunately']
 labels = [1,0]
 template = '{text}. This sentence is: [MASK]'
 dataset = maskitDataset(text, labels, model_name, template)
