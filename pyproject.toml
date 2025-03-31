@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maskit"
+version = "0.0.1"
+description = "[MASK]it -Efficient pre-trained encoder adaption leveraging the [MASK]"
+authors = [
+    { name = "Eugenia Alleva", email = "eugenia.alleva@gmail.com" }
+]
+license = {text = "Apache 2.0"}
+readme = "README.md"
+requires-python = ">=3.10.16"
+dependencies = [
+    "transformers",
+    "scikit-learn",
+    "torch"
+]
+
+# dependencies only installed with pip install -e .[dev]
+[project.optional-dependencies]
+dev = ["pytest", "black", "flake8"]
+
+# where package dir is
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+# how to find packages
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# config for flake (warns for badly written code)
+[tool.flake8]
+max-line-length = 88
+exclude = ["build", "dist", ".eggs", "__pycache__", ".venv"]
+
+# config for black (actually changes code)
+[tool.black]
+line-length = 88
