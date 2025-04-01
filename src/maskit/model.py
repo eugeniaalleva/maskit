@@ -30,8 +30,10 @@ class maskitModel(nn.Module):
         logits = F.softmax(logits.reshape(batch_size, -1), dim=-1).reshape(
             *logits.shape
         )
+        # convert to logits
+        logits = torch.log(logits+1e-15)
         # aggregate logits
-        logits = logits.sum(-1)
+        logits = logits.sum(-1)/torch.ones_like(logits).sum(-1)
         return logits
 
     def convert_map_to_id(self):

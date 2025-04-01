@@ -28,4 +28,4 @@ lint:
 
 # Clean build artifacts
 clean:
-	rm -rf build dist *.egg-info .pytest_cache __pycache__ .mypy_cache
+	rm -rf build dist src/*.egg-info .pytest_cache __pycache__ .mypy_cache
