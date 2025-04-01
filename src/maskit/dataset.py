@@ -1,181 +1,168 @@
 import torch
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer, AutoConfig
+from multiprocessing import Pool, cpu_count
+from tqdm import tqdm
+import os
+import pickle
 
 
-class maskitDataset(Dataset):
-    def __init__(self, texts, labels, model_name, template, truncation="tail"):
-        self.texts = texts
-        self.labels = labels
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.max_length = AutoConfig.from_pretrained(
-            model_name).max_position_embeddings
-        self.template = template
-        self.mask_token = self.tokenizer.mask_token
-        self.mask_token_id = self.tokenizer.mask_token_id
-        self.truncation = truncation
+# -------------- 🔄 Shared Preprocessing Function --------------
+def preprocess_single_task_sample(args):
+    text, label, model_name, template, max_length, truncation = args
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    mask_token = tokenizer.mask_token
+    mask_token_id = tokenizer.mask_token_id
 
-    def __len__(self):
-        return len(self.texts)
+    prefix_str, suffix_str = template.split("{text}")
+    prefix_ids = tokenizer(prefix_str, add_special_tokens=True)["input_ids"]
+    suffix_ids = tokenizer(suffix_str, add_special_tokens=False)["input_ids"]
+    text_ids = tokenizer(text, add_special_tokens=False)["input_ids"]
 
-    def __getitem__(self, idx):
-        text = self.texts[idx]
-        label = self.labels[idx]
+    total_len = len(prefix_ids) + len(text_ids) + len(suffix_ids)
+    if total_len > max_length:
+        max_text_len = max_length - len(prefix_ids) - len(suffix_ids)
+        if truncation == "tail":
+            text_ids = text_ids[:max_text_len]
+        else:
+            text_ids = text_ids[-max_text_len:]
 
-        if self.mask_token not in self.template:
-            raise ValueError(
-                "Template must contain the mask token placeholder."
-            )
+    input_ids = prefix_ids + text_ids + suffix_ids
+    attention_mask = [1] * len(input_ids)
+    padding_length = max_length - len(input_ids)
+    input_ids += [tokenizer.pad_token_id] * padding_length
+    attention_mask += [0] * padding_length
 
-        # Split template into prefix and suffix around the mask token
-        template_parts = self.template.split("{text}")
-        if len(template_parts) != 2:
-            raise ValueError(
-                "Template must contain a single '{text}' placeholder."
-            )
+    input_ids_tensor = torch.tensor(input_ids)
+    attention_mask_tensor = torch.tensor(attention_mask)
+    mask_token_indices = (input_ids_tensor == mask_token_id).nonzero(as_tuple=True)[0]
 
-        prefix = template_parts[0]
-        suffix = template_parts[1]
+    return {
+        "input_ids": input_ids_tensor,
+        "attention_mask": attention_mask_tensor,
+        "labels": torch.tensor(label),
+        "mask_token_id": mask_token_indices,
+    }
 
-        # Tokenize prefix and suffix with special tokens
-        prefix_ids = self.tokenizer(
-            prefix, add_special_tokens=True, return_attention_mask=False
-        )["input_ids"]
-        suffix_ids = self.tokenizer(
-            suffix, add_special_tokens=False, return_attention_mask=False
-        )["input_ids"]
 
-        # Tokenize the text to be inserted
-        text_ids = self.tokenizer(
-            text, add_special_tokens=False, return_attention_mask=False
-        )["input_ids"]
+def preprocess_multi_task_sample(args):
+    text, label, model_name, template, task_words, max_length, truncation = args
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    mask_token_id = tokenizer.mask_token_id
 
-        # Truncate text_ids from the front if needed
+    prefix_str, suffix_str = template.split("{text}")
+    prefix_ids = tokenizer(prefix_str, add_special_tokens=False)["input_ids"]
+    suffix_ids = tokenizer(suffix_str, add_special_tokens=False)["input_ids"]
+    text_ids = tokenizer(text, add_special_tokens=False)["input_ids"]
+
+    available = max_length - 2
+    total_len = len(prefix_ids) + len(text_ids) + len(suffix_ids)
+
+    if total_len > available:
+        excess = total_len - available
+        if truncation == "tail":
+            text_ids = text_ids[:-excess] if len(text_ids) > excess else []
+        else:
+            text_ids = text_ids[excess:] if len(text_ids) > excess else []
         total_len = len(prefix_ids) + len(text_ids) + len(suffix_ids)
-        if total_len > self.max_length:
-            max_text_len = self.max_length - len(prefix_ids) - len(suffix_ids)
-            if self.truncation == "tail":
-                text_ids = text_ids[:max_text_len]
-            else:
-                text_ids = text_ids[-max_text_len:]  # truncate from front
-
-        # Concatenate all parts
-        input_ids = prefix_ids + text_ids + suffix_ids
-
-        #  Pad if needed
-        attention_mask = [1] * len(input_ids)
-        padding_length = self.max_length - len(input_ids)
-        if padding_length > 0:
-            input_ids += [self.tokenizer.pad_token_id] * padding_length
-            attention_mask += [0] * padding_length
-
-        #  Convert to tensors
-        input_ids = torch.tensor(input_ids)
-        attention_mask = torch.tensor(attention_mask)
-
-        #  Find mask token index
-        mask_token_indices = (input_ids == self.mask_token_id).nonzero(
-            as_tuple=True)[0]
-
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "labels": torch.tensor(label),
-            "mask_token_id": mask_token_indices,
-        }
-
-class MultiMaskitDataset(Dataset):
-    def __init__(self, texts, labels, model_name, template, task_words, truncation="tail"):
-        self.texts = texts
-        self.labels = labels
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.max_length = AutoConfig.from_pretrained(model_name).max_position_embeddings
-        self.template = template
-        self.truncation = truncation
-
-        self.mask_token = self.tokenizer.mask_token
-        self.mask_token_id = self.tokenizer.mask_token_id
-        self.task_words = task_words
-
-    def __len__(self):
-        return len(self.texts)
-
-    def __getitem__(self, idx):
-        text = self.texts[idx]
-        label = {key:torch.tensor(value[idx]) for key, value in self.labels.items()}
-
-        if "{text}" not in self.template:
-            raise ValueError("Template must contain the '{text}' placeholder.")
-
-        # Split the template around {text}
-        prefix_str, suffix_str = self.template.split("{text}")
-
-        # Tokenize components
-        prefix_ids = self.tokenizer(prefix_str, add_special_tokens=False)["input_ids"]
-        suffix_ids = self.tokenizer(suffix_str, add_special_tokens=False)["input_ids"]
-        text_ids = self.tokenizer(text, add_special_tokens=False)["input_ids"]
-
-        # Compute available space for all parts
-        total_len = len(prefix_ids) + len(text_ids) + len(suffix_ids)
-        available = self.max_length - 2  # reserve for [CLS] and [SEP]
-
         if total_len > available:
-            # Prioritize keeping as much text as possible
             excess = total_len - available
-
-            if self.truncation == "tail":
-                text_ids = text_ids[:-excess] if len(text_ids) > excess else []
+            if len(suffix_ids) > excess:
+                suffix_ids = suffix_ids[:-excess]
             else:
-                text_ids = text_ids[excess:] if len(text_ids) > excess else []
+                excess -= len(suffix_ids)
+                suffix_ids = []
+                prefix_ids = prefix_ids[:-excess] if len(prefix_ids) > excess else []
 
-            total_len = len(prefix_ids) + len(text_ids) + len(suffix_ids)
-            # Still too long? Now start cutting suffix, then prefix
-            if total_len > available:
-                excess = total_len - available
-                if len(suffix_ids) > excess:
-                    suffix_ids = suffix_ids[:-excess]
-                else:
-                    excess -= len(suffix_ids)
-                    suffix_ids = []
-                    prefix_ids = prefix_ids[:-excess] if len(prefix_ids) > excess else []
+    input_ids = [tokenizer.cls_token_id] + prefix_ids + text_ids + suffix_ids + [tokenizer.sep_token_id]
+    attention_mask = [1] * len(input_ids)
+    pad_len = max_length - len(input_ids)
+    input_ids += [tokenizer.pad_token_id] * pad_len
+    attention_mask += [0] * pad_len
 
-        # Assemble input sequence
-        input_ids = [self.tokenizer.cls_token_id] + prefix_ids + text_ids + suffix_ids + [self.tokenizer.sep_token_id]
-        attention_mask = [1] * len(input_ids)
+    input_ids_tensor = torch.tensor(input_ids)
+    attention_mask_tensor = torch.tensor(attention_mask)
 
-        # Pad to max_length
-        pad_len = self.max_length - len(input_ids)
-        if pad_len > 0:
-            input_ids += [self.tokenizer.pad_token_id] * pad_len
-            attention_mask += [0] * pad_len
+    task_mask_indices = {}
+    for task_name, keyword in task_words.items():
+        keyword_ids = tokenizer.encode(keyword, add_special_tokens=False)
+        keyword_len = len(keyword_ids)
+        found = False
+        for i in range(len(input_ids_tensor) - keyword_len):
+            if input_ids_tensor[i:i + keyword_len].tolist() == keyword_ids:
+                for j in range(i + keyword_len, len(input_ids_tensor)):
+                    if input_ids_tensor[j] == mask_token_id:
+                        task_mask_indices[task_name] = torch.tensor(j)
+                        found = True
+                        break
+            if found:
+                break
+        if not found:
+            raise ValueError(f"[MASK] not found for task '{task_name}' using keyword '{keyword}'")
 
-        input_ids = torch.tensor(input_ids)
-        attention_mask = torch.tensor(attention_mask)
+    return {
+        "input_ids": input_ids_tensor,
+        "attention_mask": attention_mask_tensor,
+        "labels": {k: torch.tensor(label[k]) for k in label},
+        "mask_token_ids": task_mask_indices,
+    }
 
-        # Find [MASK] positions per task
-        task_mask_indices = {}
-        for task_name, keyword in self.task_words.items():
-            keyword_ids = self.tokenizer.encode(keyword, add_special_tokens=False, max_length=20, truncation=True)
-            keyword_len = len(keyword_ids)
-            found = False
 
-            for i in range(len(input_ids) - keyword_len):
-                if input_ids[i:i + keyword_len].tolist() == keyword_ids:
-                    # Find the nearest [MASK] after keyword
-                    for j in range(i + keyword_len, len(input_ids)):
-                        if input_ids[j] == self.mask_token_id:
-                            task_mask_indices[task_name] = torch.tensor(j)
-                            found = True
-                            break
-                if found:
-                    break
+# -------------- 📦 Cached Dataset Wrappers --------------
+class CachedMaskitDataset(Dataset):
+    def __init__(self, texts, labels, model_name, template, max_length,
+                 cache_path=None, truncation="tail", use_parallel=True):
+        self.cache_path = cache_path
 
-            if not found:
-                raise ValueError(f"[MASK] not found for task '{task_name}' using keyword '{keyword}'.")
+        if cache_path and os.path.exists(cache_path):
+            with open(cache_path, "rb") as f:
+                self.data = pickle.load(f)
+        else:
+            args = [(texts[i], labels[i], model_name, template, max_length, truncation)
+                    for i in range(len(texts))]
+            if use_parallel:
+                with Pool(cpu_count()) as pool:
+                    self.data = list(tqdm(pool.imap(preprocess_single_task_sample, args), total=len(texts)))
+            else:
+                self.data = [preprocess_single_task_sample(arg) for arg in tqdm(args)]
 
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "labels": label,
-            "mask_token_ids": task_mask_indices,
-        }
+            if cache_path:
+                with open(cache_path, "wb") as f:
+                    pickle.dump(self.data, f)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+
+class CachedMultiMaskitDataset(Dataset):
+    def __init__(self, texts, labels, model_name, template, task_words, max_length,
+                 cache_path=None, truncation="tail", use_parallel=True):
+        self.cache_path = cache_path
+
+        if cache_path and os.path.exists(cache_path):
+            with open(cache_path, "rb") as f:
+                self.data = pickle.load(f)
+        else:
+            args = [
+                (texts[i], {k: labels[k][i] for k in labels}, model_name,
+                 template, task_words, max_length, truncation)
+                for i in range(len(texts))
+            ]
+            if use_parallel:
+                with Pool(cpu_count()) as pool:
+                    self.data = list(tqdm(pool.imap(preprocess_multi_task_sample, args), total=len(texts)))
+            else:
+                self.data = [preprocess_multi_task_sample(arg) for arg in tqdm(args)]
+
+            if cache_path:
+                with open(cache_path, "wb") as f:
+                    pickle.dump(self.data, f)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
