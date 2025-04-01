@@ -117,17 +117,3 @@ class MultiMaskitModel(nn.Module):
         return id_map
 
 
-class MultiTaskLossWrapper(nn.Module):
-    def __init__(self, num_tasks):
-        super().__init__()
-        # log(σ²) for each task; initialized to 0 => σ² = 1
-        self.log_vars = nn.Parameter(torch.zeros(num_tasks))
-
-    def forward(self, losses):
-        # losses: list of per-task scalar loss tensors
-        total_loss = 0
-        for i, loss in enumerate(losses):
-            precision = torch.exp(-self.log_vars[i])
-            weighted_loss = precision * loss + self.log_vars[i]  # log(σ)
-            total_loss += weighted_loss
-        return total_loss
