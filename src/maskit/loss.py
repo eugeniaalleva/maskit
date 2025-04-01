@@ -57,8 +57,8 @@ class DynamicWeightAveragingLoss(nn.Module):
     def __init__(self, num_tasks, temperature=2.0):
         super().__init__()
         self.temperature = temperature
-        self.loss_history = torch.ones(num_tasks, 2)  # L_{t-2}, L_{t-1}
-        self.task_weights = torch.ones(num_tasks)
+        self.register_buffer("loss_history", torch.ones(num_tasks, 2))  # L_{t-2}, L_{t-1}
+        self.register_buffer("task_weights", torch.ones(num_tasks))
 
     def update_weights(self, current_losses):
         ratios = current_losses / (self.loss_history[:, 0] + 1e-8)
@@ -74,7 +74,7 @@ class DynamicWeightAveragingLoss(nn.Module):
             current_losses = torch.stack(losses).detach()
             self.update_weights(current_losses)
         else:
-            self.task_weights = torch.ones(len(losses))  # Equal weighting for first 2 epochs
+            self.task_weights = torch.ones(len(losses), device=self.loss_history.device)  # Equal weighting for first 2 epochs
 
         total_loss = torch.sum(self.task_weights * torch.stack(losses))
         return total_loss
