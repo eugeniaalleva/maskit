@@ -4,7 +4,7 @@ import torch
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
 
-class maskitModel(nn.Module):
+class MaskitModel(nn.Module):
     def __init__(self, model_name, verbalizer_map):
         super().__init__()
         self.backbone = AutoModelForMaskedLM.from_pretrained(model_name)

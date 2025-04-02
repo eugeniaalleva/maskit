@@ -109,7 +109,7 @@ def preprocess_multi_task_sample(args):
 
 
 # -------------- 📦 Cached Dataset Wrappers --------------
-class CachedMaskitDataset(Dataset):
+class MaskitDataset(Dataset):
     def __init__(self, texts, labels, model_name, template, max_length,
                  cache_path=None, truncation="tail", use_parallel=True):
         self.cache_path = cache_path
@@ -137,7 +137,7 @@ class CachedMaskitDataset(Dataset):
         return self.data[idx]
 
 
-class CachedMultiMaskitDataset(Dataset):
+class MultiMaskitDataset(Dataset):
     def __init__(self, texts, labels, model_name, template, task_words, max_length,
                  cache_path=None, truncation="tail", use_parallel=True):
         self.cache_path = cache_path
