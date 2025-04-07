@@ -10,6 +10,7 @@ class MaskitModel(nn.Module):
         self.backbone = AutoModelForMaskedLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.verbalizer_map = verbalizer_map
+        self.model_name = model_name
         self.verbalizer_id_dict = self.convert_map_to_id()
         self.label_word_ids = list(self.verbalizer_id_dict.values())
         self.n_classes = len(verbalizer_map)
@@ -63,6 +64,7 @@ class MultiMaskitModel(nn.Module):
         self.backbone = AutoModelForMaskedLM.from_pretrained(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.verbalizer_map = verbalizer_map
+        self.model_name = model_name
         self.verbalizer_id_dict = self.convert_map_to_id()
         self.label_word_ids = {task: list(words.values()) for task, words in self.verbalizer_id_dict.items()}
         self.n_classes = len(verbalizer_map)

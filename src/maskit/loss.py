@@ -53,32 +53,66 @@ class GradNormLoss(nn.Module):
 
         return total_loss, grad_norm_loss, self.task_weights.softmax(dim=0).detach()
 
+import torch
+import torch.nn as nn
+
+import torch
+import torch.nn as nn
+
 class DynamicWeightAveragingLoss(nn.Module):
     def __init__(self, num_tasks, temperature=2.0):
         super().__init__()
         self.temperature = temperature
-        self.register_buffer("loss_history", torch.ones(num_tasks, 2))  # L_{t-2}, L_{t-1}
+        self.register_buffer("loss_history", torch.ones(num_tasks, 2))  # [t-2, t-1]
         self.register_buffer("task_weights", torch.ones(num_tasks))
 
     def update_weights(self, current_losses):
-        ratios = current_losses / (self.loss_history[:, 0] + 1e-8)
-        exp_ratios = torch.exp(ratios / self.temperature)
-        self.task_weights = (len(current_losses) * exp_ratios / exp_ratios.sum()).detach()
+        # Previous losses for ratio computation
+        prev_losses = self.loss_history[:, 0].clone()
+        prev_losses[prev_losses < 1e-8] = 1e-8  # prevent div by 0
+
+        # Raw improvement ratio
+        ratios = current_losses / prev_losses  # L(t-1) / L(t-2)
+
+        # Normalize with current loss magnitude (to downscale tiny-loss tasks)
+        normalized_ratios = ratios * (current_losses / current_losses.mean())
+
+        # Clamp for numerical stability
+        scaled = torch.clamp(normalized_ratios / self.temperature, max=50)
+
+        # Softmax-style weight computation
+        exp_scaled = torch.exp(scaled)
+        weights = exp_scaled / exp_scaled.sum() * len(current_losses)
+
+        # Sanity check
+        if torch.isnan(weights).any() or torch.isinf(weights).any():
+            print("[Warning] NaN or Inf in task weights — reverting to uniform weights.")
+            weights = torch.ones_like(weights)
+
+        self.task_weights = weights.detach()
 
         # Update history
         self.loss_history[:, 0] = self.loss_history[:, 1]
         self.loss_history[:, 1] = current_losses.detach()
 
     def forward(self, losses, epoch):
+        losses_tensor = torch.stack(losses)
+
         if epoch >= 2:
-            current_losses = torch.stack(losses).detach()
-            self.update_weights(current_losses)
+            with torch.no_grad():
+                self.update_weights(losses_tensor.detach())
         else:
-            self.task_weights = torch.ones(len(losses), device=self.loss_history.device)  # Equal weighting for first 2 epochs
+            self.task_weights = torch.ones(len(losses), device=self.loss_history.device)
 
-        total_loss = torch.sum(self.task_weights * torch.stack(losses))
-        return total_loss
+        weighted_loss = self.task_weights * losses_tensor
 
+        if torch.isnan(weighted_loss).any():
+            print("[Error] NaN in weighted loss")
+            print("Losses:", losses_tensor)
+            print("Weights:", self.task_weights)
+
+        return weighted_loss.sum()
+        
 class ManualWeightedLoss(nn.Module):
     def __init__(self, weights):
         super().__init__()

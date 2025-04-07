@@ -111,7 +111,7 @@ def preprocess_multi_task_sample(args):
 # -------------- 📦 Cached Dataset Wrappers --------------
 class MaskitDataset(Dataset):
     def __init__(self, texts, labels, model_name, template, max_length,
-                 cache_path=None, truncation="tail", use_parallel=True):
+                 cache_path=None, truncation="tail", use_parallel=True, ncpu=2):
         self.cache_path = cache_path
 
         if cache_path and os.path.exists(cache_path):
@@ -121,7 +121,7 @@ class MaskitDataset(Dataset):
             args = [(texts[i], labels[i], model_name, template, max_length, truncation)
                     for i in range(len(texts))]
             if use_parallel:
-                with Pool(cpu_count()) as pool:
+                with Pool(ncpu) as pool:
                     self.data = list(tqdm(pool.imap(preprocess_single_task_sample, args), total=len(texts)))
             else:
                 self.data = [preprocess_single_task_sample(arg) for arg in tqdm(args)]
@@ -139,7 +139,7 @@ class MaskitDataset(Dataset):
 
 class MultiMaskitDataset(Dataset):
     def __init__(self, texts, labels, model_name, template, task_words, max_length,
-                 cache_path=None, truncation="tail", use_parallel=True):
+                 cache_path=None, truncation="tail", use_parallel=True, ncpu=2):
         self.cache_path = cache_path
 
         if cache_path and os.path.exists(cache_path):
@@ -152,7 +152,7 @@ class MultiMaskitDataset(Dataset):
                 for i in range(len(texts))
             ]
             if use_parallel:
-                with Pool(cpu_count()) as pool:
+                with Pool(ncpu) as pool:
                     self.data = list(tqdm(pool.imap(preprocess_multi_task_sample, args), total=len(texts)))
             else:
                 self.data = [preprocess_multi_task_sample(arg) for arg in tqdm(args)]
