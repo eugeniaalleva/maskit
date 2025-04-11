@@ -46,8 +46,7 @@ def preprocess_single_task_sample(args):
 
 
 def preprocess_multi_task_sample(args):
-    text, label, model_name, template, task_words, max_length, truncation = args
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    text, label, model_name, template, task_words, max_length, truncation, tokenizer = args
     mask_token_id = tokenizer.mask_token_id
 
     prefix_str, suffix_str = template.split("{text}")
@@ -141,6 +140,7 @@ class MultiMaskitDataset(Dataset):
     def __init__(self, texts, labels, model_name, template, task_words, max_length,
                  cache_path=None, truncation="tail", use_parallel=True, ncpu=2):
         self.cache_path = cache_path
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         if cache_path and os.path.exists(cache_path):
             with open(cache_path, "rb") as f:
@@ -148,7 +148,7 @@ class MultiMaskitDataset(Dataset):
         else:
             args = [
                 (texts[i], {k: labels[k][i] for k in labels}, model_name,
-                 template, task_words, max_length, truncation)
+                 template, task_words, max_length, truncation, self.tokenizer)
                 for i in range(len(texts))
             ]
             if use_parallel:
