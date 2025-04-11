@@ -191,7 +191,8 @@ for epoch in range(epochs):
 ### Inference
 ```aiignore
 model.eval()
-all_labels = all_preds = {key:[] for key in verbalizer_map.keys()}
+all_labels = {key:[] for key in verbalizer_map.keys()}
+all_preds = {key:[] for key in verbalizer_map.keys()}
 for batch in dataloader:
     # Prepare batch
     batch = {key:move_to_device(value,DEVICE) for key, value in batch.items()}
