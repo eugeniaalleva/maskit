@@ -165,7 +165,7 @@ from torch.nn import CrossEntropyLoss
 from torch.optim import AdamW
 
 loss_fun = CrossEntropyLoss()
-optimizer = AdamW(list(model.named_parameters())+list(loss_wrapper.parameters()), 1e-5)
+optimizer = AdamW(list(model.parameters())+list(loss_wrapper.parameters()), 1e-5)
 ```
 Training loop
 ```aiignore
