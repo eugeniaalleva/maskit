@@ -103,6 +103,19 @@ class MultiMaskitModel(nn.Module):
         return output
 
     def convert_map_to_id(self):
+        # flatten all verbalizer tokens across tasks and labels
+        all_tokens = set(
+            token
+            for task_map in self.verbalizer_map.values()
+            for token_list in task_map.values()
+            for token in token_list
+        )
+        # identify tokens that are missing from the current tokenizer
+        missing_tokens = [token for token in all_tokens if self.tokenizer.convert_tokens_to_ids(token) == self.tokenizer.unk_token_id]
+        # add missing tokens to tokenizer, if any
+        if missing_tokens:
+            self.tokenizer.add_tokens(missing_tokens)
+            self.backbone.resize_token_embeddings(len(self.tokenizer))
         # convert tokens to vocabulary ids
         # and assert no special tokens are present
         id_map = {
