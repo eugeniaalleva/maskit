@@ -1,0 +1,5 @@
+{
+    "no": ["no", "none", "negative"],
+    "yes": ["yes", "positive", "cramps"],
+    "unknown": ["unknown", "unspecified", "uncertain"]
+}

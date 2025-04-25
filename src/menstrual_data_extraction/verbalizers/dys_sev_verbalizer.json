@@ -1,0 +1,6 @@
+{
+    "mild": ["mild", "light", "manageable"],
+    "moderate": ["moderate", "medium", "average"],
+    "severe": ["severe", "intense", "extreme"],
+    "unknown": ["unknown", "uncertain", "unspecified"]
+}

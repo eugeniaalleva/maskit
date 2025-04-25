@@ -1,0 +1,6 @@
+{
+   "scanty": ["scanty", "light", "spotting"],
+   "normal": ["normal", "regular", "moderate"],
+   "abundant": ["abundant", "heavy", "menorrhagia"],
+   "unknown": ["unknown", "unspecified", "uncertain"]
+}

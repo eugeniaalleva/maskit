@@ -1,0 +1,68 @@
+dataset:
+  name: menstruates
+  path: data/
+  train_file: train_dataset.csv
+  dev_file: test_dataset.csv
+  note_text_column: hybrid_10_retrieved_note_text
+
+plm:
+  model: UFNLP/gatortron-base
+  optimize:
+    lr: 0.00005
+    # weight_decay: 0.01
+    # scheduler:
+    #   type: linear
+    #   warmup_fraction: 0.4
+
+train:
+    num_epochs: 15
+    batch_size: 2
+
+tasks: 
+  dysmenorrhea:
+    characteristic: Dysmenorrhea (no, yes, unknown)
+    labels:
+      - "no"
+      - "yes"
+      - "unknown"
+    prompt_template: "dysmenorrhea:"
+    prompt_verbalizer:
+      file_path: verbalizers/dys_verbalizer.json
+  dysmenorrhea_severity:
+    characteristic: Dysmenorrhea severity (mild, moderate, severe)
+    labels:
+      - "mild"
+      - "moderate"
+      - "severe"
+      - "unknown"
+    prompt_template: "dysmenorrhea severity:"
+    prompt_verbalizer:
+      file_path: verbalizers/dys_sev_verbalizer.json
+  regularity:
+    characteristic: Regularity (regular, irregular, unknown)
+    labels:
+      - "regular"
+      - "irregular"
+      - "unknown"
+    prompt_template: "period pattern:"
+    prompt_verbalizer:
+      file_path: verbalizers/reg_verbalizer.json
+  flow:
+    characteristic: Flow (scanty, normal, abundant, unknown)
+    labels:
+      - "scanty"
+      - "normal"
+      - "abundant"
+      - "unknown"
+    prompt_template: "bleeding pattern:"
+    prompt_verbalizer:
+      file_path: verbalizers/flow_verbalizer.json
+  imb:
+    characteristic: Intermenstrual Bleeding (yes, no, unknown)
+    labels:
+      - "no"
+      - "yes"
+      - "unknown"
+    prompt_template: "intermenstrual bleeding:"
+    prompt_verbalizer:
+      file_path: verbalizers/imb_verbalizer.json
